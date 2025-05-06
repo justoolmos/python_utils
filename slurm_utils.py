@@ -1,5 +1,6 @@
 import os
 import time
+import subprocess
 
 
 def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, partition = None, exclude_nodes = [], other_sbatch = [], other_commands = []):
@@ -120,7 +121,40 @@ def batch_run_slurm(ind, n, header, template_command):
     
     return 
 
+def wait_jobs(names = [], user = "jolmos", check_interval = 10 ):
+    """
+    Detiene la ejecución de un script hasta que termina un trabajo de slurm
 
-                
-                
-        
+    Parameters:
+    -names: si se indica el nombre o lista de nombres se espera a que termine este
+    -user: si no se indica el nombre se espera a que terminen todos los trabajos del usuario indicado
+    -check_interval: tiempo de espera entre chequeos
+    """
+    if type(names) != list:
+        names == [names]
+
+    while True:
+        end = True
+        if len(names) > 0:
+            for name in names:
+                result = subprocess.run(
+                    ["squeue", "-n", name],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if name in result.stdout:
+                    end = False
+        else:
+            result = subprocess.run(
+                ["squeue", "-u", user],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if user in result.stdout:
+                end = False
+        if end:
+            return
+        else:
+            time.sleep(check_interval)
