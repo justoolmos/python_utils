@@ -63,7 +63,7 @@ def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, p
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/jolmos/mambaforge/envs/ani-amber2/lib
     """)
             elif j == "gaussian":
-                header.append("source /home/jfolmos/programas/gaussian/setup_gauss.sh \n")
+                header.append("source /home/jolmos/programas/gaussian/setup_gauss.sh \n")
         
             elif "conda_env" in j:
                 env = j.split("=")[-1]
@@ -94,18 +94,24 @@ def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, p
     return "".join(header)
         
 
-def batch_run_slurm(ind, n, header, template_command):
+def batch_run_slurm(ind, n, header, template_command, dir = "./"):
     """
-    Toma una lista de indices "ind", un número de corridas n, un header y un template para el comando. 
-    Crea carpetas run_n con un script run.sh adentro listo para correr el comando.
-    "template_command" es debe tener formato de fstring con {0} en las posiciones donde va el indice.
+    Parameters:
+        -ind: lista de indices que caracterizan cada instancia del comando
+        -n: en cuantos trabajos de slurm se separan la totalidad de trabajos
+        -header: el header de cada corrida de slurm
+        -template_command: el template del comando que se repite, debe tener {0} en las posiciones donde va el indice
+        -dir: el directorio donde se crea la estructura para las corridas
+
+    Returns:
+        -crea n directorios run{n}, dentro de cada uno un archivo run.sh que corre una serie de comandos
     """
     l = len(ind)
     l_per_f = l//n 
     i = 0
     for j in range(n):
-        os.system(f"mkdir run{j}")
-        with open(f"run{j}/run.sh","w") as file:
+        os.system(f"mkdir {dir}run{j}")
+        with open(f"{dir}run{j}/run.sh","w") as file:
             file.write(header)
             for k in range(l_per_f):
                 file.write(template_command.format(ind[i])+"\n")
@@ -113,7 +119,7 @@ def batch_run_slurm(ind, n, header, template_command):
     
     f = 0
     while i < l:
-        with open(f"run{f}/run.sh","a") as file:
+        with open(f"{dir}run{f}/run.sh","a") as file:
             file.write(template_command.format(ind[i])+"\n")
             i += 1
             f += 1
