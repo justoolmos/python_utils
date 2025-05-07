@@ -41,7 +41,7 @@ def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, p
 #SBATCH --qos=mingjieliu-faimm
 #SBATCH --account=mingjieliu-faimm\n""")
 
-    else:
+    elif partition != None:
         header.append(f"#SBATCH -p {partition}\n")
     
     if len(exclude_nodes) > 0:
