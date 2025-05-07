@@ -99,3 +99,41 @@ def extract_energy_terms(files: List[str],
 
     print(f"Energy values written to: {output_csv}")
 
+############################ gaussian ################################################
+
+neutral_mol_density_header = """%chk=calculation.chk
+%nprocshared=12
+%mem=8GB
+#P wB97X/6-31G* SCF=Tight Density=Current Pop=None
+
+Gaussian Input Generated from PDB
+
+0 1
+"""
+
+def pdb_to_gau_in(pdb_file, output_file, gau_header):
+    """
+    
+    """
+    atoms = []
+
+    with open(pdb_file, 'r') as f:
+        for line in f:
+            if line.startswith(("ATOM", "HETATM")):
+                element = line[76:78].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                atoms.append((element, x, y, z))
+
+    with open(output_file, 'w') as f:
+        f.write(gau_header)
+        for atom in atoms:
+            f.write(f"{atom[0]:<2} {atom[1]:12.6f} {atom[2]:12.6f} {atom[3]:12.6f}\n")
+        f.write("\n")
+    
+    return
+
+
+
+    
