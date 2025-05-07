@@ -96,10 +96,9 @@ def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, p
 
 def batch_run_slurm(ind, n, header, template_command):
     """
-    Toma una lista de indices "ind", un número de corridas n, un diccionario de
-    parámetros para la función header y un template para el comando. 
+    Toma una lista de indices "ind", un número de corridas n, un header y un template para el comando. 
     Crea carpetas run_n con un script run.sh adentro listo para correr el comando.
-    "template_command" es debe tener formato de fstring con {} en las posiciones donde va el indice.
+    "template_command" es debe tener formato de fstring con {0} en las posiciones donde va el indice.
     """
     l = len(ind)
     l_per_f = l//n 
