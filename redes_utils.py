@@ -2,12 +2,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from matplotlib import pyplot as plt
 import random as rnd
 import copy
 from sklearn.metrics import roc_curve, roc_auc_score
 import pickle
+import multiprocessing as mp
 
 ############################################### Utilidades ################################################################
 
@@ -74,7 +76,7 @@ def plot_ROC(y_true, y_predict, labels):
     return plots, auc
 
 
-def plot_train_v_valid(losses, nets, step, valid_in, valid_out, lf):
+def plot_train_v_valid(losses, nets, step, valid_in, valid_out, lf = nn.BCELoss()):
     """
     Grafica el error de entrenamiento y el de validación
 
@@ -175,12 +177,16 @@ def train_model_on_gpu(gpu_id, model, train_in, train_out, b_size = 200, n_epoch
     with open(f"{label}_nets.pkl", "wb") as f_net:
         pickle.dump(model_snapshots, f_net)
     
+    train_in.to("cpu")
+    train_out.to("cpu")
+    model.to("cpu")
+
     return
 
 
 def run_trains_parallel(models_params):
     """
-    Runs several training processes in paralle, each on a different GPU.
+    Runs several training processes in paralle, each on a different GPU. Its important to have run "multiprocessing.set_start_method("spawn")"
     
     Parameters:
     - models_params: list of dictionariess, each one contains all the parameters for running each mode
@@ -203,3 +209,24 @@ def run_trains_parallel(models_params):
 
     for p in processes:
         p.join()
+
+############################################### Modulos especializados #################################################
+
+class CNN1d_to_Linear(nn.Module):
+    """
+    Esta clase define dos capas, una convolucional seguida de ReLU y una fully connected
+    """
+    def __init__(self, out_channel_num, kernel_len, linear_out_len, nt_len):
+        super().__init__()
+
+        self.conv1 = nn.Conv1d(in_channels=4, out_channels=out_channel_num, kernel_size=kernel_len) #La capa es una convolución 1D
+        conv_output_size = out_channel_num * ( nt_len - kernel_len + 1) # (L - K + 1) formula para el tamaño del canal de salida dado el largo del canal de entrada y el kernel
+        self.fc1 = nn.Linear(conv_output_size, linear_out_len)
+    
+    def forward(self, x):
+        x = F.relu(self.conv1(x)) #Aplicamos ReLU a la salida de la convolucional
+        x = x.view(x.size(0), -1) #Reshape de la salida a una matriz (n_seqs, flatten salida de la convolucional)
+        x = self.fc1(x) #paso la salida por la capa lineal
+        return x
+
+
