@@ -111,6 +111,8 @@ def train_net(net, lf, optim, data_loader, epochs, device, save_freq):
     net = net.to(device)
     net.train()
     for epoch in range(epochs):
+        if epoch % save_freq == 0:
+            net_prog.append(copy.deepcopy(net))
         for in_data, out_data in list(data_loader):
             if device != None:
                 in_data = in_data.to(device)
@@ -122,7 +124,6 @@ def train_net(net, lf, optim, data_loader, epochs, device, save_freq):
             optim.step()
         if epoch % save_freq == 0:
             loss_prog.append(float(loss))
-            net_prog.append(copy.deepcopy(net))
             print(f"Epoch {epoch}, Loss: {loss.item()}")
     net.eval()
     return loss_prog, net_prog
@@ -184,17 +185,19 @@ def train_model_on_gpu(gpu_id, model, train_in, train_out, b_size = 200, n_epoch
     return
 
 
-def run_trains_parallel(models_params):
+def run_trains_parallel(models_params, spawn = True):
     """
     Runs several training processes in paralle, each on a different GPU. Its important to have run "multiprocessing.set_start_method("spawn")"
     
     Parameters:
-    - models_params: list of dictionariess, each one contains all the parameters for running each mode
+        -models_params: list of tuples, each one contains all the parameters for running each model
                      according to "train model on gpu" function, except for gpu_id. They are passed as *args.
     
     Returns:
-        -losses, models: both are lists of lists, each one contains the losses and models for each training
+        -saves models and losses as pickle files
     """
+    if spawn:
+        mp.set_start_method("spawn")
     num_gpus = torch.cuda.device_count()
     print(f"Found {num_gpus} GPUs.")
     
