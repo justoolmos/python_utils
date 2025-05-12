@@ -41,6 +41,41 @@ def padding(in_array, len, axis = 0):
 
     return np.pad(in_array, pad_width, mode='constant', constant_values=0)
 
+def apply_threshold(out_array, threshold = 0.5):
+    """
+    Parameters:
+        -out_array: arrayde numpy de salida de la red
+        -threshold: valor umbral, un valor superior a este se le asigna 1, menor 0
+    Returns:
+        -array de las mismas dimensiones pero con 1 y 0 en base al umbral
+    """
+    return (out_array >= threshold).astype(int)
+
+def compute_accuracy(y_true, y_pred):
+    correct = sum(y_t == y_p for y_t, y_p in zip(y_true, y_pred))
+    return correct / len(y_true)
+
+def compute_f1_score(y_true, y_pred):
+    tp = sum((y_t == 1 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    fp = sum((y_t == 0 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    fn = sum((y_t == 1 and y_p == 0) for y_t, y_p in zip(y_true, y_pred))
+    
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0 #fraction of the total predicted positives that are actual positives
+    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0 #fraction of the total positives that where predicted as such
+    
+    if precision + recall == 0:
+        return 0
+    return 2 * (precision * recall) / (precision + recall)
+
+def compute_confusion_matrix(y_true, y_pred):
+    tp = sum((y_t == 1 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    tn = sum((y_t == 0 and y_p == 0) for y_t, y_p in zip(y_true, y_pred))
+    fp = sum((y_t == 0 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    fn = sum((y_t == 1 and y_p == 0) for y_t, y_p in zip(y_true, y_pred))
+    
+    return [[tp, fn], [fp, tn]]  # [[True Pos, False Neg], [False Pos, True Neg]]
+
+
 
 ############################################# Plots #######################################################################
 
@@ -232,4 +267,25 @@ class CNN1d_to_Linear(nn.Module):
         x = self.fc1(x) #paso la salida por la capa lineal
         return x
 
+class CNN1d_to_MaxPool_to_Linear(nn.Module):
+    """
+    Esta clase define un modulo de 3 capas:
+        -CNN con ReLU
+        -Maxpool
+        -fully connected
+    """
+    def __init__(self, cnn_channel_num, cnn_kernel_len, pool_kernel_len, input_len, linear_out_len = 1, pool_stride = None):
+        super().__init__()
+        self.conv1 = nn.Conv1d(in_channels=4, out_channels=cnn_channel_num, kernel_size=cnn_kernel_len) 
+        self.pool = nn.MaxPool1d(kernel_size=pool_kernel_len)
+        conv_output_size = (input_len - kernel_len + 1) # (L - K + 1) formula para el tamaño del canal de salida dado el largo del canal de entrada y el kernel
+        pool_output_size = cnn_channel_num * ((conv_output_size - pool_kernel_len)/pool_stride + 1)
+        self.fc1 = nn.Linear(pool_output_size, linear_out_len)
 
+    def forward(self,x):
+        x = F.relu(self.conv1(x))
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        return x
+    
