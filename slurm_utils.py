@@ -3,7 +3,7 @@ import time
 import subprocess
 
 
-def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, partition = None, exclude_nodes = [], other_sbatch = [], other_commands = []):
+def get_header(imports = [], name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, partition = None, exclude_nodes = [], other_sbatch = [], other_commands = []):
     """
     Devuelve un header para un trabajo de slurm.
     Parametros:
@@ -60,8 +60,8 @@ def get_header(imports, name = "run", cluster = "qb", n_tasks = 1, n_cpus = 1, p
             elif j == "ani_amber":
                 header.append("""source /home/jolmos/programas/amber22_final/amber22/amber.sh
 
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/jolmos/mambaforge/envs/ani-amber2/lib
-    """)
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/jolmos/mambaforge/envs/ani-amber2/lib
+""")
             elif j == "gaussian":
                 header.append("source /home/jolmos/programas/gaussian/setup_gauss.sh \n")
         
