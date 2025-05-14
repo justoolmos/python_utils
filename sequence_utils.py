@@ -25,6 +25,11 @@ def seq_to_onehot(seq, dim = 1):
     """
     Transforma una secuencia de ADN de largo N a un tensor de largo
     N*4 one hot encoded. Las posiciones para las bases son ACGT.
+    Parameters:
+        -seq: string de la secuencia de ADN
+        -dim: dimensiones del output, 1 indica un vector, 2 una matriz de dimensiones (4, len(seq))
+    Returns:
+        -array one hot encoded de la secuencia
     """
     encoding = {"A":np.array([1,0,0,0]), "C":np.array([0,1,0,0]), "G":np.array([0,0,1,0]), "T":np.array([0,0,0,1]),"a":np.array([1,0,0,0]), "c":np.array([0,1,0,0]), "g":np.array([0,0,1,0]), "t":np.array([0,0,0,1])}
     array = np.zeros((len(seq),4))

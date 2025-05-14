@@ -2,12 +2,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from matplotlib import pyplot as plt
 import random as rnd
 import copy
 from sklearn.metrics import roc_curve, roc_auc_score
 import pickle
+import multiprocessing as mp
 
 ############################################### Utilidades ################################################################
 
@@ -38,6 +40,41 @@ def padding(in_array, len, axis = 0):
     pad_width[axis] = (left_pad, right_pad)
 
     return np.pad(in_array, pad_width, mode='constant', constant_values=0)
+
+def apply_threshold(out_array, threshold = 0.5):
+    """
+    Parameters:
+        -out_array: arrayde numpy de salida de la red
+        -threshold: valor umbral, un valor superior a este se le asigna 1, menor 0
+    Returns:
+        -array de las mismas dimensiones pero con 1 y 0 en base al umbral
+    """
+    return (out_array >= threshold).astype(int)
+
+def compute_accuracy(y_true, y_pred):
+    correct = sum(y_t == y_p for y_t, y_p in zip(y_true, y_pred))
+    return correct / len(y_true)
+
+def compute_f1_score(y_true, y_pred):
+    tp = sum((y_t == 1 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    fp = sum((y_t == 0 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    fn = sum((y_t == 1 and y_p == 0) for y_t, y_p in zip(y_true, y_pred))
+    
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0 #fraction of the total predicted positives that are actual positives
+    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0 #fraction of the total positives that where predicted as such
+    
+    if precision + recall == 0:
+        return 0
+    return 2 * (precision * recall) / (precision + recall)
+
+def compute_confusion_matrix(y_true, y_pred):
+    tp = sum((y_t == 1 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    tn = sum((y_t == 0 and y_p == 0) for y_t, y_p in zip(y_true, y_pred))
+    fp = sum((y_t == 0 and y_p == 1) for y_t, y_p in zip(y_true, y_pred))
+    fn = sum((y_t == 1 and y_p == 0) for y_t, y_p in zip(y_true, y_pred))
+    
+    return [[tp, fn], [fp, tn]]  # [[True Pos, False Neg], [False Pos, True Neg]]
+
 
 
 ############################################# Plots #######################################################################
@@ -74,7 +111,7 @@ def plot_ROC(y_true, y_predict, labels):
     return plots, auc
 
 
-def plot_train_v_valid(losses, nets, step, valid_in, valid_out, lf):
+def plot_train_v_valid(losses, nets, step, valid_in, valid_out, lf = nn.BCELoss()):
     """
     Grafica el error de entrenamiento y el de validación
 
@@ -109,6 +146,8 @@ def train_net(net, lf, optim, data_loader, epochs, device, save_freq):
     net = net.to(device)
     net.train()
     for epoch in range(epochs):
+        if epoch % save_freq == 0:
+            net_prog.append(copy.deepcopy(net))
         for in_data, out_data in list(data_loader):
             if device != None:
                 in_data = in_data.to(device)
@@ -120,7 +159,6 @@ def train_net(net, lf, optim, data_loader, epochs, device, save_freq):
             optim.step()
         if epoch % save_freq == 0:
             loss_prog.append(float(loss))
-            net_prog.append(copy.deepcopy(net))
             print(f"Epoch {epoch}, Loss: {loss.item()}")
     net.eval()
     return loss_prog, net_prog
@@ -175,20 +213,26 @@ def train_model_on_gpu(gpu_id, model, train_in, train_out, b_size = 200, n_epoch
     with open(f"{label}_nets.pkl", "wb") as f_net:
         pickle.dump(model_snapshots, f_net)
     
+    train_in.to("cpu")
+    train_out.to("cpu")
+    model.to("cpu")
+
     return
 
 
-def run_trains_parallel(models_params):
+def run_trains_parallel(models_params, spawn = True):
     """
-    Runs several training processes in paralle, each on a different GPU.
+    Runs several training processes in paralle, each on a different GPU. Its important to have run "multiprocessing.set_start_method("spawn")"
     
     Parameters:
-    - models_params: list of dictionariess, each one contains all the parameters for running each mode
+        -models_params: list of tuples, each one contains all the parameters for running each model
                      according to "train model on gpu" function, except for gpu_id. They are passed as *args.
     
     Returns:
-        -losses, models: both are lists of lists, each one contains the losses and models for each training
+        -saves models and losses as pickle files
     """
+    if spawn:
+        mp.set_start_method("spawn")
     num_gpus = torch.cuda.device_count()
     print(f"Found {num_gpus} GPUs.")
     
@@ -203,3 +247,45 @@ def run_trains_parallel(models_params):
 
     for p in processes:
         p.join()
+
+############################################### Modulos especializados #################################################
+
+class CNN1d_to_Linear(nn.Module):
+    """
+    Esta clase define dos capas, una convolucional seguida de ReLU y una fully connected
+    """
+    def __init__(self, out_channel_num, kernel_len, linear_out_len, nt_len):
+        super().__init__()
+
+        self.conv1 = nn.Conv1d(in_channels=4, out_channels=out_channel_num, kernel_size=kernel_len) #La capa es una convolución 1D
+        conv_output_size = out_channel_num * ( nt_len - kernel_len + 1) # (L - K + 1) formula para el tamaño del canal de salida dado el largo del canal de entrada y el kernel
+        self.fc1 = nn.Linear(conv_output_size, linear_out_len)
+    
+    def forward(self, x):
+        x = F.relu(self.conv1(x)) #Aplicamos ReLU a la salida de la convolucional
+        x = x.view(x.size(0), -1) #Reshape de la salida a una matriz (n_seqs, flatten salida de la convolucional)
+        x = self.fc1(x) #paso la salida por la capa lineal
+        return x
+
+class CNN1d_to_MaxPool_to_Linear(nn.Module):
+    """
+    Esta clase define un modulo de 3 capas:
+        -CNN con ReLU
+        -Maxpool
+        -fully connected
+    """
+    def __init__(self, cnn_channel_num, cnn_kernel_len, pool_kernel_len, input_len, linear_out_len = 1, pool_stride = None):
+        super().__init__()
+        self.conv1 = nn.Conv1d(in_channels=4, out_channels=cnn_channel_num, kernel_size=cnn_kernel_len) 
+        self.pool = nn.MaxPool1d(kernel_size=pool_kernel_len)
+        conv_output_size = (input_len - kernel_len + 1) # (L - K + 1) formula para el tamaño del canal de salida dado el largo del canal de entrada y el kernel
+        pool_output_size = cnn_channel_num * ((conv_output_size - pool_kernel_len)/pool_stride + 1)
+        self.fc1 = nn.Linear(pool_output_size, linear_out_len)
+
+    def forward(self,x):
+        x = F.relu(self.conv1(x))
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        return x
+    
