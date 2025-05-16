@@ -32,18 +32,18 @@ def seq_to_onehot(seq, dim = 1):
         -array one hot encoded de la secuencia
     """
     encoding = {"A":np.array([1,0,0,0]), "C":np.array([0,1,0,0]), "G":np.array([0,0,1,0]), "T":np.array([0,0,0,1]),"a":np.array([1,0,0,0]), "c":np.array([0,1,0,0]), "g":np.array([0,0,1,0]), "t":np.array([0,0,0,1])}
-    array = np.zeros((len(seq),4))
+    array = np.zeros((4, len(seq)))
     
     i = 0
     while i < len(seq):
-        array[i,:] = encoding[seq[i]]
+        array[:,i] = encoding[seq[i]]
         i += 1
     
     if dim == 1:
-        return array.flatten()
+        return array.flatten(order = "F")
     
     elif dim == 2:
-        return array.reshape((4,i))
+        return array
 
 
 def make_rand_seq(l):
