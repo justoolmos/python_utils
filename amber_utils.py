@@ -4,6 +4,7 @@ import csv
 from pathlib import Path
 from collections import defaultdict
 from typing import Union, List
+import pandas as pd
 
 
 def check_run(out_files):
@@ -35,16 +36,17 @@ def check_run(out_files):
 
 def extract_energy_terms(files: List[str],
                          terms: List[str],
-                         occurrences: Union[str, int] = "last",
-                         output_csv: str = "energy_summary.csv"):
+                         occurrences: Union[str, int] = "last") -> pd.DataFrame:
     """
-    Extract specific energy terms from multiple text files and write them to a single CSV.
+    Extract specific energy terms from multiple text files and return them as a pandas DataFrame.
 
     Args:
         files (List[str]): List of file paths.
         terms (List[str]): List of energy term names to extract.
         occurrences (str|int): "first", "last", "all", or an integer for nth appearance.
-        output_csv (str): Name of the output CSV file.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the extracted energy terms.
     """
     # create a dictionary of patterns for the terms we are searching
     pattern_dict = {
@@ -78,26 +80,18 @@ def extract_energy_terms(files: List[str],
                 idx = occurrences - 1
                 filtered[term] = values[idx] if len(values) > idx else None
             elif occurrences == "all":
-                # Join all values as a string for CSV
+                # Join all values as a string for DataFrame
                 filtered[term] = ";".join(str(v) for v in values) if values else None
             else:
                 raise ValueError(""""occurrences" must be 'first', 'last', 'all', or an integer.""")
 
         # Add filename info
-        #filtered["filename"] = file_path.name
+        filtered["filename"] = file_path.name
         rows.append(filtered)
 
-    # Ensure all keys are present in every row
-    headers = terms
-
-    # Write the CSV
-    with open(output_csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=headers)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({key: row.get(key, "") for key in headers})
-
-    print(f"Energy values written to: {output_csv}")
+    # Create a DataFrame from the rows
+    df = pd.DataFrame(rows, columns=["filename"] + terms)
+    return df
 
 ############################ gaussian ################################################
 
