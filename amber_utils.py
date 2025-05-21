@@ -30,7 +30,11 @@ def check_run(out_files):
                 if "R M S  F L U C T U A T I O N S" in line:
                         return "File ok"
             return "Run failed"
-
+    if len(unfinished) == 0:
+        print("All runs OK!")
+    elif len(unfinished) > 0:
+        print("Runs failed!")
+        
     return unfinished
 
 
